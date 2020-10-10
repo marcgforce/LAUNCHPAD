@@ -51,6 +51,7 @@ Global $version="V 0.1 alpha"
 Global $dll_icones = @scriptdir & "\Assets\iconset.dll"
 Global $array
 Global $g_tStruct = DllStructCreate($tagPOINT) ; Create a structure that defines the point to be checked.
+Global $fixwindows = False
 Dim $aPos[4]
 Dim $idNewsubmenu[40]
 Dim $idChangeIcon[40]
@@ -101,7 +102,8 @@ Global const $aStartTools[][] = [ _ ; this arrays could be used as first links i
     ['Audio', 'SndVol.exe', 1, 'Run("explorer.exe Shell:::{F2DDFC82-8F12-4CDD-B7DC-D4FE1425AA4D}")','bouton24'], _     ; or 'run(@SystemDir & "\SndVol.exe")']
     ['Task view', 'SHELL32.dll', 133, 'Run("explorer.exe shell:::{3080F90E-D7AD-11D9-BD98-0000947B0257}")','bouton25'], _
     ['Task Manager', @SystemDir & '\taskmgr.exe', 1, 'Send("^+{ESC}")''bouton26'], _     ; "Run(@SystemDir & '\taskmgr.exe')",'bouton1'], _
-    ['On Screen Keyboard', 'osk.exe', 1, 'ProcessExists("osc.exe") ? False : ShellExecute("osk.exe")','bouton27'] _     ; <-- ternary example
+    ['On Screen Keyboard', 'osk.exe', 1, 'ProcessExists("osc.exe") ? False : ShellExecute("osk.exe")','bouton27'], _     ; <-- ternary example
+	['God Mode','control.exe', 1,'Run("explorer.exe Shell:::{ED7BA470-8E54-465E-825C-99712043E01C}")','bouton28'] _
 	]
 	;#ce
 	;_arraydisplay($aStartTools)
@@ -203,6 +205,7 @@ $idSavePosition = GUICtrlCreateMenuItem("Sauver la position", $GuiContextMenu)
 $idReinitializePosition = GUICtrlCreateMenuItem("Reinitialiser la position", $GuiContextMenu)
 GUICtrlCreateMenuItem("", $GuiContextMenu)
 $idReinstallLinkFile = GUICtrlCreateMenuItem("Reinitialisation complete", $GuiContextMenu)
+$idFixWindows = GUICtrlCreateMenuItem("Figer", $GuiContextMenu)
 
 Global $aMyMatrix = _GuiControlPanel("Button", $iNrPerLine, $iNrOfLines, $iStep, $iStep, BitOR(0x40, 0x1000), -1, 0, 0, 0, 0, 0, 0, False, "")
 ;_ArrayDisplay($idNewsubmenu)
@@ -224,7 +227,7 @@ Next
 _WinSetClientSize($GUI, ($aMyMatrix[0])[11], ($aMyMatrix[0])[12]) ; thanks to KaFu
 
 DragDropEvent_Startup()
-GUISetState(@SW_SHOW, $GUI)
+;GUISetState(@SW_SHOW, $GUI)
 
 ;GUISetState(@SW_SHOW, $GuiIcon)
 
@@ -242,6 +245,7 @@ Global $idExit = TrayCreateItem("Exit")
 Global $idPos = TrayCreateItem("Save windows Position")
 Global $idDfault = TrayCreateItem("Reinitialiser la position")
 Global $idOpenFileLink = TrayCreateItem("ouvrir le dossier des liens")
+
 TraySetState($TRAY_ICONSTATE_SHOW)
 
 _MainLoop()
@@ -259,16 +263,39 @@ Func _MainLoop()
 
   While 1
     Sleep (10)
-
-    If TimerDiff($hTimer) > 5000 Then
+	If _MouseIsOverHWnd($GUI) == false and _IsPressed(01) and $fixwindows = False then
+		GUISetState(@SW_HIDE, $GUI)
+		$hTimer = 0
+	EndIf
+    If TimerDiff($hTimer) > 5000 and _MouseIsOverHWnd($GUI) == False  and $fixwindows = False Then
       GUISetState(@SW_HIDE, $GUI)
       $hTimer = 0
-    EndIf
-    $aPos = MouseGetPos ()
+	EndIf
+    $aCursor = GUIGetCursorInfo($GUI)
+	$aPos = MouseGetPos ()
     If $aPos[0] = 0 Or $aPos[1] = 0 Or $aPos[0] = @DesktopWidth-1 Or $aPos[1] = @DesktopHeight-1 Then
-      $hTimer = TimerInit ()
-      GUISetState(@SW_SHOW, $GUI)
-    EndIf
+		$hTimer = TimerInit ()
+	EndIf
+
+	While $aPos[0] = 0 Or $aPos[1] = 0 Or $aPos[0] = @DesktopWidth-1 Or $aPos[1] = @DesktopHeight-1 and not _IsPressed(01); The GUI appears when the mouse touch the screen borders for 1500 ms
+		$aPos = MouseGetPos()
+		if TimerDiff($hTimer) > 1000 then
+			GUISetState(@SW_SHOW, $GUI)
+			$hTimer = TimerInit()
+			ExitLoop
+		EndIf
+		sleep(1)
+	WEnd
+;_______________________
+ ;   If TimerDiff($hTimer) > 5000 Then
+  ;    GUISetState(@SW_HIDE, $GUI)
+    ;  $hTimer = 0
+   ; EndIf
+   ; $aPos = MouseGetPos ()
+   ; If $aPos[0] = 0 Or $aPos[1] = 0 Or $aPos[0] = @DesktopWidth-1 Or $aPos[1] = @DesktopHeight-1 Then
+    ;  $hTimer = TimerInit ()
+     ; GUISetState(@SW_SHOW, $GUI)
+   ; EndIf
     $Msg = GUIGetMsg()
 	for $i = 0 to ubound($idNewsubmenu)-1
 		if $Msg = $idNewsubmenu[$i] and $aTools[$i][3] <> "" Then
@@ -337,6 +364,14 @@ Func _MainLoop()
 				FileDelete($filelink)
 				_RestartProgram()
 			EndIf
+		Case $idFixWindows
+			if $fixwindows = False Then
+				$fixwindows = True
+				 GUICtrlSetState($msg, $GUI_CHECKED + $GUI_UNCHECKED - BitAND(GUICtrlRead($msg), $GUI_UNCHECKED) - BitAND(GUICtrlRead($msg), $GUI_CHECKED))
+			Else
+				$fixwindows = False
+				GUICtrlSetState($msg, $GUI_CHECKED + $GUI_UNCHECKED - BitAND(GUICtrlRead($msg), $GUI_CHECKED) - BitAND(GUICtrlRead($msg), $GUI_UNCHECKED))
+			EndIf
 
 	EndSwitch
 	Switch TrayGetMsg()
@@ -399,6 +434,19 @@ Func _MainLoop()
     EndIf
   WEnd
 EndFunc   ;==>_MainLoop
+
+Func _MouseIsOverHWnd($hWnd) ;to check if mouse is on or off GUI
+    Local $bMouseOver
+    If not WinActive($hWnd) then return False
+    Local $aMousePos = MouseGetPos()
+    Local $aWinPos = WinGetPos($hWnd)
+    if ($aMousePos[0] < $aWinPos[0] Or $aMousePos[0] > $aWinPos[0] + $aWinPos[2]) Or ($aMousePos[1] < $aWinPos[1] Or $aMousePos[1] > $aWinPos[1] + $aWinPos[3]) Then
+        $bMouseOver = False
+    Else
+        $bMouseOver = True
+    EndIf
+    Return $bMouseOver
+EndFunc   ;==>_MouseIsOverHWnd
 
 Func WM_NOTIFY ($hwnd, $iMsg, $iwParam, $ilParam)
   If $hwnd = $GUI Then $hTimer = TimerInit ()
